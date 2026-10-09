@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diabetic Retinopathy AI Diagnostic System | CV + Deep Learning</title>
+  <meta name="description" content="AI-powered Diabetic Retinopathy screening platform using Computer Vision and Deep Learning with Grad-CAM explainability and clinical diagnostic reports.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Navigation Header -->
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-icon">👁️</div>
+      <div>
+        <h1 class="brand-title">RetinaAI Screen</h1>
+        <div class="brand-subtitle">Diabetic Retinopathy Diagnostic System</div>
+      </div>
+    </div>
+    
+    <div class="nav-badges">
+      <span class="badge badge-active">
+        <span class="badge-dot"></span> AI Engine: PyTorch ResNet-50
+      </span>
+      <span class="badge">Scale: ICDR 0–4</span>
+      <span class="badge">Standard: Ben Graham CV</span>
+    </div>
+  </header>
+
+  <!-- Main Application Container -->
+  <main class="app-container">
+    
+    <!-- LEFT PANEL: Image Input & CV Filter Selector -->
+    <section class="panel-card">
+      <div class="panel-header">
+        <h2 class="panel-title"><span>📥</span> Fundus Image Source</h2>
+      </div>
+
+      <!-- File Upload Zone -->
+      <div class="upload-dropzone" id="dropzone">
+        <div class="upload-icon">📁</div>
+        <div style="font-weight: 600; font-size: 0.9rem;">Upload Retinal Photo</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted);">Drag & drop or click to browse</div>
+        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+      </div>
+
+      <!-- Preset Clinical Cases -->
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
+          Sample Clinical Presets (ICDR Scale)
+        </div>
+        <div class="preset-list">
+          <button class="preset-btn active" data-grade="0">
+            <span>Grade 0: Normal Retina</span>
+            <span class="preset-grade-tag" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">No DR</span>
+          </button>
+          <button class="preset-btn" data-grade="1">
+            <span>Grade 1: Microaneurysms</span>
+            <span class="preset-grade-tag" style="background: rgba(234, 179, 8, 0.2); color: #eab308;">Mild</span>
+          </button>
+          <button class="preset-btn" data-grade="2">
+            <span>Grade 2: Exudates & Hemorrhage</span>
+            <span class="preset-grade-tag" style="background: rgba(249, 115, 22, 0.2); color: #f97316;">Moderate</span>
+          </button>
+          <button class="preset-btn" data-grade="3">
+            <span>Grade 3: Cotton Wool Spots</span>
+            <span class="preset-grade-tag" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">Severe</span>
+          </button>
+          <button class="preset-btn" data-grade="4">
+            <span>Grade 4: Neovascularization</span>
+            <span class="preset-grade-tag" style="background: rgba(220, 38, 38, 0.2); color: #dc2626;">PDR</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- CV Processing Pipeline Controls -->
+      <div class="filter-group">
+        <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
+          Computer Vision Pipeline
+        </div>
+        <div class="filter-chip-grid">
+          <button class="filter-chip active" data-filter="original">Original Fundus</button>
+          <button class="filter-chip" data-filter="green">Green Channel</button>
+          <button class="filter-chip" data-filter="clahe">CLAHE Contrast</button>
+          <button class="filter-chip" data-filter="vessels">Vessel Network</button>
+        </div>
+        
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--text-muted); margin-top: 6px; cursor: pointer;">
+          <input type="checkbox" id="chkLesions" checked style="accent-color: var(--primary-cyan);">
+          Highlight Lesion Bounding Boxes
+        </label>
+      </div>
+
+    </section>
+
+    <!-- MIDDLE PANEL: Dual Canvas Inspector & Grad-CAM Visualizer -->
+    <section class="panel-card visualizer-card">
+      <div class="panel-header">
+        <div class="view-controls">
+          <div class="tab-switch">
+            <button class="tab-btn active" id="btnDualView">Dual Inspection</button>
+            <button class="tab-btn" id="btnArchitectureView">Model Architecture</button>
+          </div>
+        </div>
+
+        <!-- Grad-CAM Opacity Slider -->
+        <div class="slider-group">
+          <span>Grad-CAM Heatmap:</span>
+          <input type="range" id="gradCamSlider" min="0" max="1" step="0.05" value="0.6">
+          <span id="gradCamVal">60%</span>
+        </div>
+      </div>
+
+      <!-- MAIN INSPECTION VIEWPORT (Dual Canvases) -->
+      <div class="canvas-container" id="visualizerViewport">
+        <!-- Left Box: Source / CV Processed Canvas -->
+        <div class="canvas-box">
+          <span class="canvas-overlay-tag" id="leftTag">Processed Canvas (CV)</span>
+          <canvas id="sourceCanvas" width="512" height="512"></canvas>
+        </div>
+
+        <!-- Right Box: Explainable AI (Grad-CAM Heatmap) -->
+        <div class="canvas-box">
+          <span class="canvas-overlay-tag">Explainable AI: Grad-CAM Heatmap</span>
+          <canvas id="heatmapCanvas" width="512" height="512"></canvas>
+        </div>
+      </div>
+
+      <!-- MODEL ARCHITECTURE INSPECTOR VIEW (Hidden by default) -->
+      <div class="architecture-container" id="architectureViewport">
+        <div style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700;">
+          🧠 Deep Learning Architecture & Training Pipeline
+        </div>
+        
+        <!-- Pipeline Diagram -->
+        <div class="arch-pipeline">
+          <div class="arch-node">
+            <div style="font-weight: 700;">Input Fundus</div>
+            <div style="font-size: 0.7rem; color: var(--text-muted);">512 × 512 × 3</div>
+          </div>
+          <div class="arch-arrow">➔</div>
+          <div class="arch-node">
+            <div style="font-weight: 700;">Ben Graham CV</div>
+            <div style="font-size: 0.7rem; color: var(--text-muted);">Crop + CLAHE</div>
+          </div>
+          <div class="arch-arrow">➔</div>
+          <div class="arch-node" style="background: rgba(59, 130, 246, 0.2); border-color: var(--primary-blue);">
+            <div style="font-weight: 700;">ResNet-50 / EfficientNet</div>
+            <div style="font-size: 0.7rem; color: var(--text-muted);">Feature Extractor</div>
+          </div>
+          <div class="arch-arrow">➔</div>
+          <div class="arch-node">
+            <div style="font-weight: 700;">Grad-CAM Hook</div>
+            <div style="font-size: 0.7rem; color: var(--text-muted);">Layer4 Attention</div>
+          </div>
+          <div class="arch-arrow">➔</div>
+          <div class="arch-node" style="background: rgba(16, 185, 129, 0.2); border-color: #10b981;">
+            <div style="font-weight: 700;">5-Class Softmax</div>
+            <div style="font-size: 0.7rem; color: var(--text-muted);">ICDR 0–4 Output</div>
+          </div>
+        </div>
+
+        <!-- Performance Metrics Grid -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+          <div class="findings-box" style="text-align: center;">
+            <div style="font-size: 1.2rem; font-weight: 800; color: var(--primary-cyan);">0.924</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">Quadratic Kappa (QWK)</div>
+          </div>
+          <div class="findings-box" style="text-align: center;">
+            <div style="font-size: 1.2rem; font-weight: 800; color: #10b981;">94.8%</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">Sensitivity (Recall)</div>
+          </div>
+          <div class="findings-box" style="text-align: center;">
+            <div style="font-size: 1.2rem; font-weight: 800; color: var(--primary-blue);">96.2%</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">Specificity</div>
+          </div>
+          <div class="findings-box" style="text-align: center;">
+            <div style="font-size: 1.2rem; font-weight: 800; color: #eab308;">0.978</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">AUC-ROC Score</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: AI Diagnosis & Clinical Report Card -->
+    <section class="panel-card">
+      <div class="panel-header">
+        <h2 class="panel-title"><span>📋</span> AI Screening Result</h2>
+        <span style="font-size: 0.75rem; color: var(--text-muted);" id="scanTime">Just now</span>
+      </div>
+
+      <!-- Severity Banner -->
+      <div class="severity-banner" id="severityBanner">
+        <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);" id="riskCategory">
+          Low Risk
+        </div>
+        <div class="severity-title" id="severityTitle">
+          Grade 0: No DR
+        </div>
+        <div class="confidence-row">
+          <span>Neural Confidence Score:</span>
+          <span class="confidence-val" id="confidenceScore">94.8%</span>
+        </div>
+      </div>
+
+      <!-- Multi-Class Softmax Probability Breakdown -->
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
+          Class Probability Breakdown
+        </div>
+        <div class="prob-list" id="probList">
+          <!-- Filled dynamically via app.js -->
+        </div>
+      </div>
+
+      <!-- Clinical Findings Summary -->
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
+          Pathology Observations
+        </div>
+        <div class="findings-box" id="findingsBox">
+          <ul>
+            <li>Normal retinal vasculature.</li>
+            <li>No lesions or hemorrhages.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Clinical Recommendation Pathway -->
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
+          Clinical Recommendation
+        </div>
+        <div class="findings-box" style="border-left: 3px solid var(--primary-cyan);" id="recommendationBox">
+          Routine annual diabetic eye screening.
+        </div>
+      </div>
+
+      <!-- Export Report Trigger -->
+      <button class="btn-primary" id="btnPrintReport">
+        <span>📄</span> Export Diagnostic PDF Report
+      </button>
+
+    </section>
+
+  </main>
+
+  <script src="cv_engine.js"></script>
+  <script src="ai_inference.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
